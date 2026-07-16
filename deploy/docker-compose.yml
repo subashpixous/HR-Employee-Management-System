@@ -1,11 +1,11 @@
 # ============================================================
 # Pixous HR Portal — PRODUCTION stack (EC2)
 # Images are PULLED from Docker Hub (built & pushed by GitHub Actions).
-# This file is copied to the EC2 host by the deploy workflow and run with
-# Docker Compose v2:  docker compose up -d
+# This file is copied to /home/ubuntu/app on the EC2 host by the deploy
+# workflow and run with Docker Compose v2:  docker compose up -d
 #
-# NOTE: the repo root docker-compose.yml (MySQL+Redis for local dev) is a
-# separate, untouched file. This is the production compose.
+# Interpolation variables (DOCKER_HUB_USERNAME, IMAGE_TAG, DB_*, ...) come
+# from /home/ubuntu/app/.env — see .env.example.
 # ============================================================
 name: hr-portal
 
@@ -45,7 +45,7 @@ services:
 
   # ---------------------------------------------------------- Backend (Spring Boot)
   backend:
-    image: ${DOCKERHUB_USERNAME}/hr-portal-backend:${IMAGE_TAG:-latest}
+    image: ${DOCKER_HUB_USERNAME}/hr-portal-backend:${IMAGE_TAG:-latest}
     container_name: hrportal-backend
     restart: unless-stopped
     depends_on:
@@ -82,9 +82,36 @@ services:
       retries: 5
       start_period: 90s
 
+  # ---------------------------------------------------------- Analytics (FastAPI)
+  analytics:
+    image: ${DOCKER_HUB_USERNAME}/hr-portal-analytics:${IMAGE_TAG:-latest}
+    container_name: hrportal-analytics
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_NAME: ${DB_NAME:-hr}
+      DB_USER: ${DB_USER:-root}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - analytics_faces:/app/faces
+    # Bound to loopback only: the service has no auth, so it is reachable via
+    # the nginx /api/analytics route or an SSH tunnel, not the public internet.
+    ports:
+      - "127.0.0.1:8082:8082"
+    networks: [hrportal]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8082/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   # ---------------------------------------------------------- Frontend (static SPA via nginx)
   frontend:
-    image: ${DOCKERHUB_USERNAME}/hr-portal-frontend:${IMAGE_TAG:-latest}
+    image: ${DOCKER_HUB_USERNAME}/hr-portal-frontend:${IMAGE_TAG:-latest}
     container_name: hrportal-frontend
     restart: unless-stopped
     depends_on:
@@ -125,6 +152,7 @@ volumes:
   mysql_data:
   redis_data:
   backend_storage:
+  analytics_faces:
 
 networks:
   hrportal:

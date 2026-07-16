@@ -10,7 +10,7 @@
 # (replace <your-domain>), then: docker compose restart nginx
 # ============================================================
 set -euo pipefail
-cd "$(dirname "$0")"
+cd /home/ubuntu/app
 
 DOMAIN="${1:-}"
 EMAIL="${2:-}"

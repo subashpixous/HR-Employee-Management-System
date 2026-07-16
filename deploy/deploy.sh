@@ -2,14 +2,16 @@
 # ============================================================
 # Server-side deploy for the HR Portal (run on the EC2 host).
 # Invoked by the GitHub Actions SSH step, or manually:
-#   cd ~/hr-portal && ./deploy.sh
-# Requires: docker-compose.yml, nginx/default.conf and .env in this directory.
+#   cd /home/ubuntu/app && ./deploy.sh
+# Requires: docker-compose.yml, nginx/default.conf and .env in /home/ubuntu/app.
 # ============================================================
 set -euo pipefail
-cd "$(dirname "$0")"
+
+APP_DIR=/home/ubuntu/app
+cd "$APP_DIR"
 
 if [ ! -f .env ]; then
-  echo "ERROR: .env not found in $(pwd). Copy .env.example to .env and fill it in."
+  echo "ERROR: .env not found in $APP_DIR. Copy .env.example to .env and fill it in."
   exit 1
 fi
 
@@ -30,13 +32,21 @@ sleep 5
 docker compose ps
 
 echo "==> Backend readiness probe"
-for i in $(seq 1 30); do
+backend_up=false
+for i in $(seq 1 60); do
   if docker compose exec -T backend curl -fsS http://localhost:7060/v3/api-docs >/dev/null 2>&1; then
     echo "Backend is UP."
+    backend_up=true
     break
   fi
-  echo "   waiting for backend... ($i/30)"
+  echo "   waiting for backend... ($i/60)"
   sleep 5
 done
+
+if [ "$backend_up" != "true" ]; then
+  echo "ERROR: backend did not become ready within 5 minutes. Recent logs:"
+  docker compose logs --tail 50 backend || true
+  exit 1
+fi
 
 echo "==> Deploy complete."
