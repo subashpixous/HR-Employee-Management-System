@@ -1,0 +1,16 @@
+# Build output (we compile inside the image)
+target/
+
+# Committed runtime artefacts that must never enter the image
+storage/
+*.log
+error.log
+hs_err_pid*.log
+
+# VCS / IDE / OS noise
+.git
+.gitignore
+.idea/
+*.iml
+.vscode/
+.DS_Store

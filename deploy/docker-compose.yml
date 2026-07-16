@@ -1,0 +1,131 @@
+# ============================================================
+# Pixous HR Portal — PRODUCTION stack (EC2)
+# Images are PULLED from Docker Hub (built & pushed by GitHub Actions).
+# This file is copied to the EC2 host by the deploy workflow and run with
+# Docker Compose v2:  docker compose up -d
+#
+# NOTE: the repo root docker-compose.yml (MySQL+Redis for local dev) is a
+# separate, untouched file. This is the production compose.
+# ============================================================
+name: hr-portal
+
+services:
+  # ---------------------------------------------------------- MySQL
+  mysql:
+    image: mysql:8.4
+    container_name: hrportal-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MYSQL_DATABASE: ${DB_NAME:-hr}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks: [hrportal]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ---------------------------------------------------------- Redis
+  redis:
+    image: redis:7-alpine
+    container_name: hrportal-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks: [hrportal]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------- Backend (Spring Boot)
+  backend:
+    image: ${DOCKERHUB_USERNAME}/hr-portal-backend:${IMAGE_TAG:-latest}
+    container_name: hrportal-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      SERVER_PORT: "7060"
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME:-hr}
+      DB_USER: ${DB_USER:-root}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?set APP_JWT_SECRET in .env}
+      STORAGE_PATH: /app/storage
+      TWILIO_ENABLED: ${TWILIO_ENABLED:-false}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
+      MAIL_HOST: ${MAIL_HOST:-localhost}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+    volumes:
+      - backend_storage:/app/storage
+    networks: [hrportal]
+    healthcheck:
+      # No actuator dependency in the app, so probe a public springdoc endpoint.
+      test: ["CMD", "curl", "-fsS", "http://localhost:7060/v3/api-docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  # ---------------------------------------------------------- Frontend (static SPA via nginx)
+  frontend:
+    image: ${DOCKERHUB_USERNAME}/hr-portal-frontend:${IMAGE_TAG:-latest}
+    container_name: hrportal-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    networks: [hrportal]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ---------------------------------------------------------- Nginx reverse proxy (edge)
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: hrportal-nginx
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+      frontend:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+    networks: [hrportal]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  mysql_data:
+  redis_data:
+  backend_storage:
+
+networks:
+  hrportal:
+    driver: bridge

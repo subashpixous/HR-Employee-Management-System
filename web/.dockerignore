@@ -1,0 +1,20 @@
+# Dependencies & build output (installed/built inside the image)
+node_modules/
+dist/
+.vite/
+tsconfig.tsbuildinfo
+
+# Local env & logs
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+
+# VCS / IDE / OS noise
+.git
+.gitignore
+.idea/
+*.iml
+.vscode/
+.DS_Store
