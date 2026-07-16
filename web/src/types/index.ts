@@ -125,6 +125,10 @@ export interface AttendanceRecord {
   geofenceException?: boolean;
   inLatitude?: number;
   inLongitude?: number;
+  // Punch-out coordinates are stored server-side (Attendance entity) but not
+  // yet exposed by AttendanceResponse — optional so consumers fall back to "N/A".
+  outLatitude?: number;
+  outLongitude?: number;
 }
 
 export interface LeaveType {

@@ -65,6 +65,11 @@ export default function LoginPage() {
     formState: { errors }
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
+  // Hoisted so the inputs can chain react-hook-form's onBlur with the
+  // activeField reset instead of specifying onBlur twice.
+  const usernameField = register("username");
+  const passwordField = register("password");
+
   if (tokenStore.access) {
     return <Navigate to="/" replace />;
   }
@@ -143,9 +148,12 @@ export default function LoginPage() {
                   type="text"
                   placeholder="your username"
                   className="w-full bg-transparent outline-none placeholder:text-white/35 text-white"
+                  {...usernameField}
                   onFocus={() => setActiveField('username')}
-                  onBlur={() => setActiveField(null)}
-                  {...register("username")}
+                  onBlur={(e) => {
+                    void usernameField.onBlur(e);
+                    setActiveField(null);
+                  }}
                 />
               </Field>
             </motion.div>
@@ -156,9 +164,12 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   className="flex-1 min-w-0 bg-transparent outline-none placeholder:text-white/35 text-white tracking-[0.2em]"
+                  {...passwordField}
                   onFocus={() => setActiveField('password')}
-                  onBlur={() => setActiveField(null)}
-                  {...register("password")}
+                  onBlur={(e) => {
+                    void passwordField.onBlur(e);
+                    setActiveField(null);
+                  }}
                 />
                 <button
                   type="button"

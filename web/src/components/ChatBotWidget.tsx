@@ -261,7 +261,9 @@ export function ChatBotWidget() {
           audioEl = document.createElement("audio");
           audioEl.id = "chatbot-tts-audio";
           audioEl.style.display = "none";
-          audioEl.referrerPolicy = "no-referrer";
+          // <audio> has no referrerPolicy IDL property in the DOM typings;
+          // set the content attribute instead (same effect where supported).
+          audioEl.setAttribute("referrerpolicy", "no-referrer");
           document.body.appendChild(audioEl);
         }
         audioRef.current = audioEl;

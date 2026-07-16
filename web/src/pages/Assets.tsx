@@ -41,7 +41,8 @@ export default function AssetsPage() {
     queryKey: ["assets", "inventory"],
     enabled: canManage,
     queryFn: async () => {
-      const res = await api.get<any>("/assets?size=50");
+      // GET /assets returns a PageResponse directly (no ApiEnvelope wrapper).
+      const res = await api.get<PageEnvelope<Asset>>("/assets?size=50");
       return res.data?.content || [];
     }
   });

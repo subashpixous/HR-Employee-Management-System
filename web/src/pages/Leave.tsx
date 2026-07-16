@@ -73,7 +73,8 @@ export default function LeavePage() {
   const requests = useQuery({
     queryKey: ["leave", "me"],
     queryFn: async () => {
-      const res = await api.get<any>("/leave/me?size=50");
+      // GET /leave/me returns a PageResponse directly (no ApiEnvelope wrapper).
+      const res = await api.get<PageEnvelope<LeaveRequest>>("/leave/me?size=50");
       return res.data?.content || [];
     }
   });
